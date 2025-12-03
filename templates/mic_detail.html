@@ -1,0 +1,18 @@
+<h1>Microphone: {{ mic.device_name }}</h1>
+
+<p>Session code: {{ mic.session.code }}</p>
+<p>Coordinates: ({{ mic.x_coordinate }}, {{ mic.y_coordinate }})</p>
+<p>Status: 
+    {% if mic.is_ready %}
+        <strong style="color: green;">Ready</strong>
+    {% else %}
+        <strong style="color: red;">Not Ready</strong>
+    {% endif %}
+</p>
+
+{% if not mic.is_ready %}
+<form method="POST" action="{% url 'mic_ready' pk=mic.id %}">
+    {% csrf_token %}
+    <button type="submit">I am ready</button>
+</form>
+{% endif %}

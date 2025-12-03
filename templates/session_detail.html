@@ -1,0 +1,31 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Session {{ session.code }}</title></head>
+<body>
+  <h1>Session {{ session.code }}</h1>
+  <ul>
+    <li>Owner: {{ session.owner_name }}</li>
+    <li>Room: {{ session.width }} × {{ session.height }} m</li>
+    <li>Status: {{ session.is_active|yesno:"active,inactive" }}</li>
+  </ul>
+
+  <h2>Connected microphones</h2>
+  {% if session.microphone_data.all %}
+    <ul>
+      {% for mic in session.microphone_data.all %}
+        <li>{{ mic.device_name }} — ({{ mic.x_coordinate }}, {{ mic.y_coordinate }}) — ready: {{ mic.is_ready }}</li>
+      {% empty %}
+        <li>No microphones yet.</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+
+  <form method="post" action="{% url 'start_recording' code=session.code %}">
+    {% csrf_token %}
+    <button type="submit">Start recording</button>
+  </form>
+
+
+  <p><a href="/create/">Create another</a></p>
+</body></html>
+
+

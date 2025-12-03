@@ -1,0 +1,8 @@
+<h1>Join session</h1>
+
+<form method="post">
+    {% csrf_token %}
+    <label>Session code:</label>
+    <input type="text" name="code" required>
+    <button type="submit">Join</button>
+</form>

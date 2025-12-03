@@ -1,0 +1,16 @@
+<h1>Connect microphone to session {{ code }}</h1>
+
+<form method="post">
+    {% csrf_token %}
+    
+    <label>Device name:</label>
+    <input type="text" name="device_name" required>
+
+    <label>X coordinate:</label>
+    <input type="number" name="x" step="0.1" required>
+
+    <label>Y coordinate:</label>
+    <input type="number" name="y" step="0.1" required>
+
+    <button type="submit">Connect</button>
+</form>
