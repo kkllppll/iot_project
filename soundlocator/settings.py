@@ -125,3 +125,4 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
+GCS_BUCKET_NAME = "iot-audio-bucket-elina-2025"
