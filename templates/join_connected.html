@@ -1,4 +1,21 @@
-<h1>Connected ✅</h1>
-<p>You have joined session <strong>{{ code }}</strong>.</p>
-<p>You can wait for the host to start recording.</p>
-<a href="/session/{{ code }}/">Go to session dashboard</a>
+{% extends "base.html" %}
+
+{% block title %}Connected{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 text-center">
+        <div class="card p-4">
+            <h2 class="mb-3">Приєднано</h2>
+
+            <p class="mb-3">
+                Ви доєдналися до сесії <strong>{{ code }}</strong>
+            </p>
+
+            <a href="/session/{{ code }}/" class="btn btn-primary">
+                Панель керування сесією
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

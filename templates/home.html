@@ -1,11 +1,21 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hello Elina</title>
-</head>
-<body>
-    <h1>IT is working!</h1>
-</body>
-</html>
+{% extends "base.html" %}
+
+{% block title %}Головна{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 text-center">
+        <div class="card p-5">
+            <h1 class="mb-3">Система визначення розташування джерела звуку </h1>
+            <p class="text-muted mb-4">
+                Система визначення розташування джерела звуку за допомогою IoT-пристроїв
+            </p>
+
+            <div class="d-flex justify-content-center gap-3">
+                <a href="/create/" class="btn btn-lg btn-primary">Створити сесію</a>
+                <a href="/join/" class="btn btn-lg btn-outline-primary">Приєдантися до сесії</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

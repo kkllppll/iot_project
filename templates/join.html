@@ -1,8 +1,26 @@
-<h1>Join session</h1>
+{% extends "base.html" %}
 
-<form method="post">
-    {% csrf_token %}
-    <label>Session code:</label>
-    <input type="text" name="code" required>
-    <button type="submit">Join</button>
-</form>
+{% block title %}Приєднатися до сесії{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-5">
+        <div class="card p-4">
+            <h2 class="mb-4">Приєднатися до сесії</h2>
+
+            <form method="post">
+                {% csrf_token %}
+
+                <div class="mb-3">
+                    <label class="form-label">Код сесії </label>
+                    <input type="text" name="code" class="form-control" required>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100">
+                    Приєднатися
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

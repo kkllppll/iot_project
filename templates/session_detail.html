@@ -1,31 +1,137 @@
-<!doctype html><html><head><meta charset="utf-8"><title>Session {{ session.code }}</title></head>
-<body>
-  <h1>Session {{ session.code }}</h1>
-  <ul>
-    <li>Owner: {{ session.owner_name }}</li>
-    <li>Room: {{ session.width }} × {{ session.height }} m</li>
-    <li>Status: {{ session.is_active|yesno:"active,inactive" }}</li>
-  </ul>
+{% extends "base.html" %}
 
-  <h2>Connected microphones</h2>
-  {% if session.microphone_data.all %}
-    <ul>
-      {% for mic in session.microphone_data.all %}
-        <li>{{ mic.device_name }} — ({{ mic.x_coordinate }}, {{ mic.y_coordinate }}) — ready: {{ mic.is_ready }}</li>
-      {% empty %}
-        <li>No microphones yet.</li>
-      {% endfor %}
-    </ul>
+{% block title %}Сесія {{ session.code }}{% endblock %}
+
+{% block content %}
+
+<!--  про сесію -->
+<div class="card p-4 mb-4">
+  <h2 class="mb-3">Сесія {{ session.code }}</h2>
+
+  <div class="row g-3">
+    <div class="col-md-7">
+      <div class="p-3 bg-light rounded">
+        <div><b>Власник:</b> {{ session.owner_name }}</div>
+        <div><b>Кімната:</b> {{ session.width }} × {{ session.height }} м</div>
+        <div>
+          <b>Статус:</b>
+          {% if session.is_active %}
+            <span class="badge bg-success">active</span>
+          {% else %}
+            <span class="badge bg-secondary">inactive</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-5 d-flex align-items-start">
+      <form method="post" action="{% url 'start_recording' code=session.code %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-primary">
+          Почати запис
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- підключені мікрофони -->
+<div class="card p-4 mb-4">
+  <h4 class="mb-3">Приєднані мікрофони</h4>
+
+  <ul class="mb-0">
+    {% for mic in session.microphone_data.all %}
+      <li class="mb-1">
+        {{ mic.device_name }} — ({{ mic.x_coordinate }}, {{ mic.y_coordinate }})
+        {% if mic.is_ready %}
+          <span class="badge bg-success ms-2">готовий</span>
+        {% else %}
+          <span class="badge bg-warning text-dark ms-2">не готовий</span>
+        {% endif %}
+      </li>
+    {% empty %}
+      <li>Немає мікрофонів</li>
+    {% endfor %}
+  </ul>
+</div>
+
+<!-- інтелектуальна обробка -->
+<div class="card p-4 mb-4">
+  <h4 class="mb-3">Інтелектуальна обробка</h4>
+
+  {% if active_round %}
+    <div class="alert alert-info mb-3">
+      <b>Активний round:</b> #{{ active_round.id }}
+    </div>
+
+    <form method="post" action="{% url 'process_round' round_id=active_round.id %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-success">
+        Проаналізувати звук
+      </button>
+    </form>
+  {% else %}
+    <div class="alert alert-warning mb-0">
+      <b>Немає активного round.</b> Натисніть «Почати запис».
+    </div>
+  {% endif %}
+</div>
+
+<!-- результат + план кімнати -->
+<div class="card p-4 mb-4">
+  <h4 class="mb-3">План кімнати</h4>
+
+  <p class="mb-2">
+    Розмір: <b>{{ session.width }} × {{ session.height }}</b>
+    {% if last_round %} | Останній round: <b>#{{ last_round.id }}</b>{% endif %}
+  </p>
+
+  {% if last_result %}
+    <div class="alert alert-success">
+      <b>Остання локалізація:</b>
+      (x={{ last_result.estimated_x }}, y={{ last_result.estimated_y }})
+      | error={{ last_result.error }}
+      | mics={{ last_result.num_mics }}
+    </div>
+  {% else %}
+    <div class="alert alert-secondary">
+      <i>Ще немає результату локалізації. Натисніть “Проаналізувати звук”.</i>
+    </div>
   {% endif %}
 
+  {% with W=session.width H=session.height %}
+<div class="border rounded p-2 bg-light">
+  <svg viewBox="0 0 {{ session.width }} {{ session.height }}"
+     width="100%"
+     height="{{ svg_height }}"
+     preserveAspectRatio="xMidYMid meet"
+     style="display:block;">
 
-  <form method="post" action="{% url 'start_recording' code=session.code %}">
-    {% csrf_token %}
-    <button type="submit">Start recording</button>
-  </form>
+  <rect x="0" y="0"
+        width="{{ session.width }}" height="{{ session.height }}"
+        fill="white" stroke="#333" stroke-width="0.05"/>
 
+  {% for mic in mics %}
+    <circle cx="{{ mic.x_coordinate }}" cy="{{ mic.y_coordinate }}"
+            r="{{ mic_r }}" fill="#0d6efd"/>
+    <text x="{{ mic.x_coordinate }}" y="{{ mic.y_coordinate }}"
+          font-size="{{ fs }}" dx="{{ dx }}" dy="{{ dy }}" fill="#000">
+      M{{ mic.id }}
+    </text>
+  {% endfor %}
 
-  <p><a href="/create/">Create another</a></p>
-</body></html>
+  {% if last_result %}
+    <circle cx="{{ last_result.estimated_x }}" cy="{{ last_result.estimated_y }}"
+            r="{{ sound_r }}" fill="red"/>
+    <text x="{{ last_result.estimated_x }}" y="{{ last_result.estimated_y }}"
+          font-size="{{ fs }}" dx="{{ dx }}" dy="{{ dy }}" fill="red">
+      SOUND
+    </text>
+  {% endif %}
+</svg>
+
+</div>
+{% endwith %}
+{% endblock %}
 
 

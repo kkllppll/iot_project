@@ -1,223 +1,145 @@
-<h1>Microphone: {{ microphone.device_name }}</h1>
+{% extends "base.html" %}
 
-<p>Session code: {{ microphone.session.code }}</p>
-<p>Coordinates: ({{ microphone.x_coordinate }}, {{ microphone.y_coordinate }})</p>
+{% block title %}Мікрофон{% endblock %}
 
-<hr>
+{% block content %}
+<div class="card p-4 mb-4">
+    <h2>{{ microphone.device_name }}</h2>
 
-<h3>Current audio</h3>
-{% if last_segment %}
-  <p>Segment: {{ last_segment.segment_index }} | {{ last_segment.created_at }}</p>
-  <audio controls src="{{ last_segment.audio_file.url }}"></audio>
-  <p><a href="{{ last_segment.audio_file.url }}" download>Download</a></p>
-{% else %}
-  <p>No audio yet.</p>
-{% endif %}
+    <p class="text-muted">
+        Сесія {{ microphone.session.code }} |
+        ({{ microphone.x_coordinate }}, {{ microphone.y_coordinate }})
+    </p>
 
-<hr>
+    <p>
+        Статус:
+        {% if microphone.is_ready %}
+            <span class="badge bg-success">Готовий</span>
+        {% else %}
+            <span class="badge bg-danger">Не готовий</span>
+        {% endif %}
+    </p>
 
-
-<p>Status:
-    {% if microphone.is_ready %}
-        <strong style="color: green;">Ready</strong>
-    {% else %}
-        <strong style="color: red;">Not Ready</strong>
+    {% if not microphone.is_ready %}
+        <form method="post" action="{% url 'mic_ready' pk=microphone.id %}">
+            {% csrf_token %}
+            <button class="btn btn-outline-primary">Готовий</button>
+        </form>
     {% endif %}
-</p>
+</div>
 
-{% if not microphone.is_ready %}
-<form method="POST" action="{% url 'mic_ready' pk=microphone.id %}">
-    {% csrf_token %}
-    <button type="submit">I am ready</button>
-</form>
-{% endif %}
+<div class="card p-4 mb-4">
+    <h4>Останнє записане аудіо</h4>
 
-<hr>
 
-<button id="startBtn">Start 10s segments</button>
-<button id="stopBtn" disabled>Stop</button>
+    {% if last_segment_url %}
+    <audio controls class="w-100 mt-2" src="{{ last_segment_url }}"></audio>
+    {% else %}
+      <p class="text-muted">Немає посилання на аудіо</p>
+    {% endif %}
 
-<!-- CSRF для fetch -->
+  
+</div>
+
+<button id="startBtn"
+        class="btn btn-primary"
+        {% if not active_round %}disabled{% endif %}>
+    Записати 10 секунд аудіо
+</button>
+
 <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
 
 <script>
-  const micId = "{{ microphone.id }}";
-  const uploadUrl = "{% url 'upload_audio' microphone.id %}";
+const uploadUrl = "{% url 'upload_audio' microphone.id %}";
+const SEGMENT_MS = 10_000;
 
-  const SEGMENT_MS = 10_000; // 10 секунд
+let stream = null;
+let mediaRecorder = null;
+let isRecording = false;
 
-  let stream = null;
-  let mediaRecorder = null;
+let chunks = [];
+let segmentStartDate = null;
+let segmentStartPerf = null;
 
-  let isRunning = false;
-  let segmentIndex = 0;
+function getCsrfToken() {
+  const el = document.querySelector('input[name="csrfmiddlewaretoken"]');
+  return el ? el.value : "";
+}
 
-  let segmentStartDate = null;
-  let segmentStartPerf = null;
+async function initAudio() {
+  stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+}
 
-  let stopTimer = null;
+function pickRecorderOptions() {
+  if (window.MediaRecorder && MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+    return { mimeType: "audio/webm;codecs=opus" };
+  }
+  return {};
+}
 
-  // важливо: збираємо всі шматочки в масив
-  let segmentChunks = [];
+async function uploadSegment(blob, startedAtISO, durationMs) {
+  const formData = new FormData();
+  formData.append("audio", blob, "segment.webm");
+  formData.append("segment_index", "0");
+  formData.append("started_at", startedAtISO);
+  formData.append("duration_ms", String(durationMs));
+  formData.append("csrfmiddlewaretoken", getCsrfToken());
 
-  const startBtn = document.getElementById("startBtn");
-  const stopBtn  = document.getElementById("stopBtn");
+  const resp = await fetch(uploadUrl, {
+    method: "POST",
+    body: formData
+  });
 
-  function getCsrfToken() {
-    const el = document.querySelector('input[name="csrfmiddlewaretoken"]');
-    return el ? el.value : "";
+  if (!resp.ok) {
+    throw new Error(await resp.text());
+  }
+}
+
+document.getElementById("startBtn").addEventListener("click", async () => {
+  if (isRecording) return;
+
+  try {
+    if (!stream) await initAudio();
+  } catch {
+    alert("Немає доступу до мікрофона");
+    return;
   }
 
-  async function initAudio() {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      alert("Ваш браузер не підтримує запис аудіо.");
-      return null;
+  isRecording = true;
+  chunks = [];
+
+  mediaRecorder = new MediaRecorder(stream, pickRecorderOptions());
+
+  segmentStartDate = new Date();
+  segmentStartPerf = performance.now();
+
+  mediaRecorder.ondataavailable = e => {
+    if (e.data && e.data.size > 0) {
+      chunks.push(e.data);
     }
-    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    return stream;
-  }
+  };
 
-  function pickRecorderOptions() {
-    const opts = {};
-    if (window.MediaRecorder && MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
-      opts.mimeType = "audio/webm;codecs=opus";
-    } else if (window.MediaRecorder && MediaRecorder.isTypeSupported("audio/webm")) {
-      opts.mimeType = "audio/webm";
-    } else if (window.MediaRecorder && MediaRecorder.isTypeSupported("audio/ogg;codecs=opus")) {
-      opts.mimeType = "audio/ogg;codecs=opus";
-    }
-    return opts;
-  }
+  mediaRecorder.onstop = async () => {
+    const blob = new Blob(chunks, { type: mediaRecorder.mimeType });
+    const durationMs = Math.floor(performance.now() - segmentStartPerf);
 
-  function createRecorder() {
-    const opts = pickRecorderOptions();
     try {
-      return new MediaRecorder(stream, opts);
+      await uploadSegment(blob, segmentStartDate.toISOString(), durationMs);
+      location.reload();
     } catch (e) {
-      console.warn("MediaRecorder options failed, fallback default:", e);
-      return new MediaRecorder(stream);
-    }
-  }
-
-  async function uploadSegment(blob, idx, startedAtISO, durationMs) {
-    const formData = new FormData();
-    const csrfToken = getCsrfToken();
-
-    // імя файлу може бути будь-яке
-    const filename = `segment_${idx}.webm`;
-
-    formData.append("audio", blob, filename);
-    formData.append("segment_index", String(idx));
-    formData.append("started_at", startedAtISO);
-    formData.append("duration_ms", String(durationMs));
-    formData.append("csrfmiddlewaretoken", csrfToken);
-
-    const resp = await fetch(uploadUrl, { method: "POST", body: formData });
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => "");
-      throw new Error(`Upload failed: ${resp.status} ${text}`);
-    }
-    return await resp.json();
-  }
-
-  function startOneSegment() {
-    if (!isRunning) return;
-
-    mediaRecorder = createRecorder();
-
-    segmentStartDate = new Date();
-    segmentStartPerf = performance.now();
-
-    // очистили масив на новий сегмент
-    segmentChunks = [];
-
-    mediaRecorder.ondataavailable = (event) => {
-      // MediaRecorder може викликати це кілька разів — це ок
-      if (event.data && event.data.size > 0) {
-        segmentChunks.push(event.data);
-      } else {
-        console.warn("Empty dataavailable chunk, ignore");
-      }
-    };
-
-    mediaRecorder.onstop = async () => {
-      // Склеюємо все, що назбирали, в 1 Blob
-      const mime = mediaRecorder.mimeType || "audio/webm";
-      const blob = new Blob(segmentChunks, { type: mime });
-
-      if (!blob || blob.size === 0) {
-        console.warn("Empty segment after stop, skip upload");
-      } else {
-        const durationMs = Math.max(0, Math.floor(performance.now() - segmentStartPerf));
-        const startedAtISO = segmentStartDate.toISOString();
-        const idx = segmentIndex;
-
-        try {
-          const data = await uploadSegment(blob, idx, startedAtISO, durationMs);
-          console.log("Segment uploaded:", data);
-          segmentIndex += 1;
-        } catch (err) {
-          console.error("Upload error:", err);
-        }
-      }
-
-      // якщо досі записуємо — стартуємо наступний сегмент
-      if (isRunning) {
-        setTimeout(startOneSegment, 50);
-      }
-    };
-
-    mediaRecorder.start(); // БЕЗ timeslice => максимально стабільний “завершений файл”
-    console.log("Segment started, mimeType:", mediaRecorder.mimeType);
-
-    // Через 10 секунд зупиняємо сегмент
-    stopTimer = setTimeout(() => {
-      if (mediaRecorder && mediaRecorder.state === "recording") {
-        mediaRecorder.stop(); // requestData НЕ треба
-      }
-    }, SEGMENT_MS);
-  }
-
-  function stopAll() {
-    isRunning = false;
-
-    if (stopTimer) {
-      clearTimeout(stopTimer);
-      stopTimer = null;
+      alert("Помилка завантаження аудіо");
     }
 
-    if (mediaRecorder && mediaRecorder.state === "recording") {
+    isRecording = false;
+  };
+
+  mediaRecorder.start();
+
+  setTimeout(() => {
+    if (mediaRecorder.state === "recording") {
       mediaRecorder.stop();
     }
-
-    startBtn.disabled = false;
-    stopBtn.disabled = true;
-    console.log("Recording stopped fully");
-  }
-
-  startBtn.addEventListener("click", async () => {
-    if (isRunning) return;
-
-    try {
-      if (!stream) await initAudio();
-    } catch (err) {
-      console.error(err);
-      alert("Не вдалося отримати доступ до мікрофона.");
-      return;
-    }
-
-    isRunning = true;
-
-    startBtn.disabled = true;
-    stopBtn.disabled = false;
-
-    startOneSegment();
-  });
-
-  stopBtn.addEventListener("click", () => stopAll());
-
-  window.addEventListener("beforeunload", () => {
-    if (isRunning) stopAll();
-    if (stream) stream.getTracks().forEach(t => t.stop());
-  });
+  }, SEGMENT_MS);
+});
 </script>
+{% endblock %}

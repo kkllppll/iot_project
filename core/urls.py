@@ -20,4 +20,10 @@ urlpatterns = [
 
     # upload сегментів (10 секундні файли)
     path("upload_audio/<int:mic_id>/", views.upload_audio, name="upload_audio"),
+
+    path("round/<int:round_id>/process/", views.process_round, name="process_round"),
+
 ]
+
+
+
